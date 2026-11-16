@@ -1,0 +1,262 @@
+<title>Caliper Review</title>
+<style>
+  :root {
+    --bg: #f6f7f8; --panel: #ffffff; --text: #16191d; --muted: #66707a;
+    --line: #dde1e5; --accent: #2a62d9; --keep: #1f8a4c; --drop: #c0392b; --warn: #8a5a00;
+    --warn-bg: #fff4dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111417; --panel: #1a1e22; --text: #e8eaed; --muted: #98a2ac;
+      --line: #2c3238; --accent: #6d9bff; --keep: #4cc27d; --drop: #ff6b5b; --warn: #ffcf70;
+      --warn-bg: #2e2510;
+     color-scheme: dark; }
+  }
+  :root[data-theme="dark"] {
+      --bg: #111417; --panel: #1a1e22; --text: #e8eaed; --muted: #98a2ac;
+      --line: #2c3238; --accent: #6d9bff; --keep: #4cc27d; --drop: #ff6b5b; --warn: #ffcf70;
+      --warn-bg: #2e2510;
+     color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .banner { background: var(--warn-bg); color: var(--warn); padding: 6px 16px;
+            font-size: 12px; text-align: center; border-bottom: 1px solid var(--line); }
+  header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+           padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+           padding-right: max(16px, env(safe-area-inset-right, 0px));
+           border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  select, button { font: inherit; color: var(--text); background: var(--panel);
+                   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button.keep { border-color: var(--keep); color: var(--keep); }
+  button.drop { border-color: var(--drop); color: var(--drop); }
+  .progress { color: var(--muted); margin-left: auto; }
+  main { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 100px); }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } .list { max-height: 30vh; } }
+  .list { border-right: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
+  .row { display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+         border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row.current { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .row .id { font-weight: 600; width: 36px; }
+  .row .size { flex: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line);
+         color: var(--muted); }
+  .state { width: 16px; text-align: center; font-weight: 700; }
+  .state.keep { color: var(--keep); } .state.drop { color: var(--drop); }
+  .detail { padding: 16px; overflow-x: auto; }
+  .strip { max-width: 100%; height: auto; border-radius: 6px; background: #000; display: block; }
+  .caption { color: var(--muted); font-size: 12px; margin: 6px 0 16px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 16px; }
+  dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .export { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);
+            display: grid; gap: 8px; max-width: 640px; }
+  .export input { font: inherit; color: var(--text); background: var(--bg);
+                  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; width: 8em; }
+  .export textarea { width: 100%; min-height: 120px; font: 12px ui-monospace, monospace;
+                     color: var(--text); background: var(--bg); border: 1px solid var(--line);
+                     border-radius: 6px; padding: 8px; }
+  .export .line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .status { color: var(--keep); font-size: 12px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px;
+        padding: 0 4px; color: var(--muted); }
+  .help { color: var(--muted); font-size: 12px; margin-top: 16px; }
+  .empty { padding: 24px; color: var(--muted); }
+</style>
+<div class="banner">Research use only. Not for clinical decisions. Public RIDER practice data.</div>
+<header>
+  <h1>Caliper</h1>
+  <select id="scan" aria-label="Scan"></select>
+  <button id="export">Export</button>
+  <span class="progress" id="progress"></span>
+</header>
+<main>
+  <div class="list" id="list" role="listbox" aria-label="Candidates"></div>
+  <div class="detail" id="detail"></div>
+</main>
+
+<script>
+// Decisions and timings live in this browser only. Every access is guarded: storage can be
+// missing in a private window, and the page has to work without it.
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+let data, scan, idx = 0, shownAt = performance.now();
+const decisions = store.get("caliper.decisions", {});   // "patient/N1" -> "keep" | "drop"
+const timings = store.get("caliper.timings", []);        // {patient, nodule, decision, ms}
+const history = [];                                       // undo stack, this session only
+
+const key = (c) => `${scan.patient}/${c.nodule_id}`;
+const $ = (id) => document.getElementById(id);
+
+async function load() {
+  data = await (await fetch("data.json")).json();
+  $("scan").innerHTML = data.scans
+    .map((s, i) => `<option value="${i}">${s.patient} · ${s.candidates.length} candidates</option>`)
+    .join("");
+  $("scan").onchange = (e) => openScan(+e.target.value);
+  openScan(0);
+}
+
+function openScan(i) {
+  scan = data.scans[i];
+  idx = Math.max(0, scan.candidates.findIndex((c) => !decisions[key(c)]));
+  render();
+}
+
+function render() {
+  const cands = scan.candidates;
+  $("list").innerHTML = cands.map((c, i) => {
+    const d = decisions[key(c)];
+    return `<div class="row ${i === idx ? "current" : ""}" data-i="${i}" role="option"
+              aria-selected="${i === idx}">
+      <span class="state ${d || ""}">${d === "keep" ? "✓" : d === "drop" ? "✕" : ""}</span>
+      <span class="id">${c.nodule_id}</span>
+      <span class="size">${c.long_axis_mm} × ${c.short_axis_mm} mm</span>
+      <span class="tag">${c.source}</span>
+    </div>`;
+  }).join("");
+  $("list").querySelectorAll(".row").forEach((r) => (r.onclick = () => go(+r.dataset.i)));
+  $("list").querySelector(".current")?.scrollIntoView({ block: "nearest" });
+
+  const done = cands.filter((c) => decisions[key(c)]).length;
+  const kept = cands.filter((c) => decisions[key(c)] === "keep").length;
+  $("progress").textContent = `${done}/${cands.length} reviewed · ${kept} kept`;
+
+  const c = cands[idx];
+  if (!c) { $("detail").innerHTML = `<div class="empty">No candidates on this scan.</div>`; return; }
+  $("detail").innerHTML = `
+    <img class="strip" src="${c.image}" alt="Slices around candidate ${c.nodule_id}, outline in red">
+    <div class="caption">Five slices centred on slice ${c.slice_index}, lung window. Outline in red.</div>
+    <dl>
+      <dt>Long × short axis</dt><dd>${c.long_axis_mm} × ${c.short_axis_mm} mm</dd>
+      <dt>Mean diameter</dt><dd>${c.mean_diameter_mm} mm</dd>
+      <dt>Volume</dt><dd>${c.volume_mm3} mm³</dd>
+      <dt>Type</dt><dd>${c.type}</dd>
+      <dt>Solid component</dt><dd>${c.solid_component_mm} mm</dd>
+      <dt>Lobe</dt><dd>${c.lobe.replaceAll("_", " ")}</dd>
+      <dt>Found by</dt><dd>${c.source === "model" ? "trained model" : "density filter"}</dd>
+    </dl>
+    <div class="actions">
+      <button class="keep" id="keep">Keep <kbd>A</kbd></button>
+      <button class="drop" id="drop">Dismiss <kbd>X</kbd></button>
+      <button id="undo">Undo <kbd>U</kbd></button>
+    </div>
+    <div class="help"><kbd>J</kbd>/<kbd>K</kbd> or arrows to move · decisions save in this browser</div>
+    <div class="export">
+      <div class="line">
+        <label for="who">Measured by</label>
+        <input id="who" maxlength="8" value="${who}" placeholder="initials">
+        <button id="copySheet">Copy kept rows</button>
+        <button id="copyTimes">Copy timings</button>
+        <span class="status" id="status" role="status"></span>
+      </div>
+      <textarea id="out" readonly aria-label="Exported rows" hidden></textarea>
+      <div class="help">Paste into cell A1 of your sheet. Rows are tab-separated, so the 18 columns line up.</div>
+    </div>`;
+  $("who").oninput = (e) => { who = e.target.value.trim(); store.set("caliper.reviewer", who); };
+  $("copySheet").onclick = () => copyOut(sheetRows(), "kept rows");
+  $("copyTimes").onclick = () => copyOut(timingRows(), "timings");
+  $("keep").onclick = () => decide("keep");
+  $("drop").onclick = () => decide("drop");
+  $("undo").onclick = undo;
+  shownAt = performance.now();
+}
+
+function go(i) {
+  idx = Math.min(Math.max(i, 0), scan.candidates.length - 1);
+  render();
+}
+
+// One keystroke per decision, next undecided candidate focused automatically. At 5-10
+// false marks a scan, anything slower hands back the time the tool saved.
+function decide(d) {
+  const c = scan.candidates[idx];
+  if (!c) return;
+  history.push({ k: key(c), prev: decisions[key(c)], i: idx });
+  decisions[key(c)] = d;
+  // Time-to-decision per candidate: the raw material for the time-saved number.
+  timings.push({ patient: scan.patient, nodule: c.nodule_id, decision: d,
+                 source: c.source, ms: Math.round(performance.now() - shownAt) });
+  store.set("caliper.decisions", decisions);
+  store.set("caliper.timings", timings);
+  const next = scan.candidates.findIndex((x, j) => j > idx && !decisions[key(x)]);
+  go(next === -1 ? idx : next);
+}
+
+function undo() {
+  const h = history.pop();
+  if (!h) return;
+  if (h.prev) decisions[h.k] = h.prev; else delete decisions[h.k];
+  timings.pop();
+  store.set("caliper.decisions", decisions);
+  store.set("caliper.timings", timings);
+  go(h.i);
+}
+
+let who = store.get("caliper.reviewer", "");
+const tsv = (rows) => rows.map((r) => r.map((v) => String(v ?? "").replace(/[\t\n]/g, " ")).join("\t")).join("\n");
+
+// The viewer blocks file downloads, so export goes through the clipboard as tab-separated
+// text: pasted into a spreadsheet, the columns land in place with no import step.
+// "Measured by" comes from the reviewer, never the tool: it pre-fills, a person signs.
+function sheetRows() {
+  const cols = ["Patient ID","Scan Date","Timepoint","Series #","Slice Thickness","Nodule ID",
+    "Lobe","Slice #","Type","Long axis","Short axis","Mean diameter (calculated)",
+    "Solid component","Volume","Match to prior","Minutes on scan","Measured by","Notes"];
+  const mine = timings.filter((t) => t.patient === scan.patient);
+  const minutes = (mine.reduce((s, t) => s + t.ms, 0) / 60000).toFixed(1);
+  const rows = scan.candidates.filter((c) => decisions[key(c)] === "keep").map((c) => [
+    scan.patient, scan.scan_date, scan.timepoint, scan.series, scan.slice_thickness, c.nodule_id,
+    c.lobe, c.slice_index, c.type, c.long_axis_mm, c.short_axis_mm, c.mean_diameter_mm,
+    c.solid_component_mm, c.volume_mm3, "", minutes, who, `reviewed in Caliper, found by ${c.source}`,
+  ]);
+  return tsv([cols, ...rows]);
+}
+
+function timingRows() {
+  const mine = timings.filter((t) => t.patient === scan.patient);
+  return tsv([["patient","nodule","decision","source","ms"], ...mine.map((t) => Object.values(t))]);
+}
+
+async function copyOut(text, what) {
+  const out = $("out");
+  out.hidden = false;
+  out.value = text;
+  if (what === "kept rows" && !who) {
+    $("status").textContent = "Add your initials first — they fill the Measured by column.";
+    $("who").focus();
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    $("status").textContent = `Copied ${what}.`;
+  } catch {
+    out.focus(); out.select();
+    $("status").textContent = "Copy blocked here — the text below is selected, press Cmd+C.";
+  }
+}
+
+$("export").onclick = () => { $("who")?.scrollIntoView({ block: "center" }); $("who")?.focus(); };
+
+document.addEventListener("keydown", (e) => {
+  if (["SELECT", "INPUT", "TEXTAREA"].includes(e.target.tagName) || e.metaKey || e.ctrlKey) return;
+  const k = e.key.toLowerCase();
+  if (k === "a") decide("keep");
+  else if (k === "x") decide("drop");
+  else if (k === "u") undo();
+  else if (k === "j" || k === "arrowdown") { e.preventDefault(); go(idx + 1); }
+  else if (k === "k" || k === "arrowup") { e.preventDefault(); go(idx - 1); }
+});
+
+load().catch((err) => {
+  $("detail").innerHTML = `<div class="empty">Could not load data.json — serve this folder over
+    HTTP (for example <code>python3 -m http.server</code>) rather than opening the file directly.</div>`;
+  console.error(err);
+});
+</script>

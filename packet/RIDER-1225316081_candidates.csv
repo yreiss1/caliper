@@ -1,0 +1,8 @@
+Patient ID,Scan Date,Timepoint,Series #,Slice Thickness,Nodule ID,Lobe,Slice #,Type,Long axis,Short axis,Mean diameter (calculated),Solid component,Volume,Match to prior,Minutes on scan,Measured by,Notes
+RIDER-1225316081,2007-01-30,test,105,1.25,N1,lung_lower_lobe_right,96,part-solid,10.8,9.5,10.1,10.8,273.3,,,,"candidate, unreviewed, found by model"
+RIDER-1225316081,2007-01-30,test,105,1.25,N2,lung_upper_lobe_left,150,part-solid,3.1,2.1,2.6,3.1,42.5,,,,"candidate, unreviewed, found by model"
+RIDER-1225316081,2007-01-30,test,105,1.25,N3,lung_lower_lobe_right,115,solid,13.4,11.7,12.6,13.4,510.8,,,,"candidate, unreviewed, found by density"
+RIDER-1225316081,2007-01-30,test,105,1.25,N4,lung_lower_lobe_right,122,part-solid,14.0,5.3,9.7,12.4,616.3,,,,"candidate, unreviewed, found by density"
+RIDER-1225316081,2007-01-30,test,105,1.25,N5,lung_lower_lobe_left,113,part-solid,15.0,6.4,10.7,15.0,384.1,,,,"candidate, unreviewed, found by density"
+RIDER-1225316081,2007-01-30,test,105,1.25,N6,lung_lower_lobe_left,117,part-solid,16.1,4.8,10.5,16.1,368.9,,,,"candidate, unreviewed, found by density"
+RIDER-1225316081,2007-01-30,test,105,1.25,N7,lung_upper_lobe_left,95,part-solid,13.4,6.7,10.1,13.4,262.7,,,,"candidate, unreviewed, found by density"

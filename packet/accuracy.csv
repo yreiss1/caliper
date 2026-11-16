@@ -1,0 +1,5 @@
+Patient,Candidates,By model,By density,Lesion found,Found by,Rank in list,Dice,Expert long axis mm,Tool long axis mm,Diameter error %,Expert man vs auto Dice
+RIDER-1129164940,9,2,7,yes,model,1,0.814,68.8,54.8,-20.4,0.914
+RIDER-1225316081,7,2,5,yes,model,1,0.615,13.6,10.8,-20.6,0.939
+RIDER-1801720707,16,4,12,yes,density,12,0.428,12.3,17.7,43.6,0.634
+RIDER-2799584460,41,12,29,yes,model,4,0.795,12.6,11.3,-10.1,0.995

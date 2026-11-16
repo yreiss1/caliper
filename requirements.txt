@@ -1,0 +1,8 @@
+numpy
+scipy
+SimpleITK
+pydicom
+requests
+TotalSegmentator
+rt-utils
+pillow
