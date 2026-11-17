@@ -263,23 +263,27 @@ def density_candidates(
     return kept, next_id
 
 
-def merge_labels(nodules: np.ndarray, extra: np.ndarray | None) -> tuple[np.ndarray, dict]:
-    """One labelled volume from both detectors, recording which found what.
+def merge_labels(nodules: np.ndarray, extras: list[tuple[np.ndarray, str]]) -> tuple[np.ndarray, dict]:
+    """One labelled volume from every detector, recording which found what.
 
-    A density candidate overlapping a model candidate is dropped rather than merged: the
-    model's boundary is the better one, and two marks on one lesion costs the reviewer a
-    decision they shouldn't have to make.
+    The trained model goes first and keeps its boundary. Each further detector only adds
+    candidates that overlap nothing already there: two marks on one lesion costs the reviewer
+    a decision they shouldn't have to make.
     """
     labels, n = ndimage.label(nodules.astype(bool))
     sources = {i: "model" for i in range(1, n + 1)}
-    if extra is not None and extra.max():
-        for extra_id in range(1, int(extra.max()) + 1):
-            mask = extra == extra_id
-            if (labels[mask] > 0).any():
+    for extra, source in extras:
+        if extra is None or not extra.max():
+            continue
+        for extra_id, box in enumerate(ndimage.find_objects(extra), 1):
+            if box is None:
+                continue
+            mask = extra[box] == extra_id
+            if (labels[box][mask] > 0).any():
                 continue
             n += 1
-            labels[mask] = n
-            sources[n] = "density"
+            labels[box][mask] = n
+            sources[n] = source
     return labels, sources
 
 
@@ -312,13 +316,16 @@ def candidates(
     # than nodules. The trained model's candidates come first — it found the lesion on three
     # of four scans — and within each group the roundest come first, since the leftovers in
     # this density band are mostly vessel.
-    found.sort(key=lambda m: (m["source"] != "model", m["linearity"], -m["long_axis_mm"]))
+    # Faint candidates rank above density ones: missing a hazy nodule costs Daniel his whole
+    # second pass, so those are the marks he most needs to see early.
+    priority = {"model": 0, "faint": 1, "density": 2}
+    found.sort(key=lambda m: (priority[m["source"]], m["linearity"], -m["long_axis_mm"]))
     for i, m in enumerate(found, 1):
         m["nodule_id"] = f"N{i}"
     return found, labels
 
 
-def run(series_dir: Path, device: str = "cpu") -> dict:
+def run(series_dir: Path, device: str = "cpu", faint: bool = False) -> dict:
     image = load_series(series_dir)
     work = series_dir / "caliper"
     work.mkdir(exist_ok=True)
@@ -330,8 +337,20 @@ def run(series_dir: Path, device: str = "cpu") -> dict:
     # SimpleITK reports spacing as (x, y, z); every array here is (z, y, x).
     spacing = tuple(reversed(image.GetSpacing()))
 
-    ggn, ggn_count = density_candidates(ct, lungs, spacing)
-    labels, sources = merge_labels(nodules, ggn)
+    # Imported here because faint.py builds on helpers in this module.
+    from caliper.faint import faint_candidates, segment_vessels, trim_vessels, widen
+
+    vessels = widen(segment_vessels(nifti, work, device=device))
+    dense, _ = density_candidates(ct, lungs, spacing)
+    dense = trim_vessels(dense, vessels, spacing)  # both noise marks Daniel saw were bifurcations
+    extras = [(dense, "density")]
+    # Off by default. A fixed ground-glass HU window found 89-526 candidates per scan, mostly
+    # gravity-dependent haze in the posterior lower lobes and small vessels seen end-on.
+    # Kept behind --faint until it can be measured against real faint-nodule ground truth.
+    if faint:
+        faint_labels, _ = faint_candidates(ct, lungs, vessels, spacing)
+        extras.append((faint_labels, "faint"))
+    labels, sources = merge_labels(nodules, extras)
     found, labels = candidates(labels, sources, ct, spacing, work / "lobes")
     # Keep the labelled volume so evaluation and review can recover a candidate's voxels
     # without re-running a ten-minute segmentation.
@@ -359,10 +378,10 @@ def run(series_dir: Path, device: str = "cpu") -> dict:
         writer.writeheader()
         writer.writerows(rows)
 
-    by_source = {s: sum(1 for m in found if m["source"] == s) for s in ("model", "density")}
+    by_source = {s: sum(1 for m in found if m["source"] == s) for s in ("model", "faint", "density")}
     print(
-        f"{len(found)} candidates ({by_source['model']} model, {by_source['density']} density) "
-        f"-> {work/'sheet.csv'}"
+        f"{len(found)} candidates ({by_source['model']} model, {by_source['faint']} faint, "
+        f"{by_source['density']} density) -> {work/'sheet.csv'}"
     )
     for m in found:
         print(
@@ -376,8 +395,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Pre-process one CT series into a candidate worklist.")
     ap.add_argument("series_dir", type=Path)
     ap.add_argument("--device", default="cpu", help="cpu | gpu | mps")
+    ap.add_argument("--faint", action="store_true", help="experimental ground-glass pass")
     args = ap.parse_args()
-    run(args.series_dir, device=args.device)
+    run(args.series_dir, device=args.device, faint=args.faint)
 
 
 if __name__ == "__main__":

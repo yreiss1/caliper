@@ -82,7 +82,7 @@ def demo():
     density = np.zeros(SHAPE, int)
     density[sphere_at((40, 80, 80), 8.0)] = 1  # same lesion
     density[sphere_at((20, 40, 40), 8.0)] = 2  # elsewhere
-    _, sources = merge_labels(model, density)
+    _, sources = merge_labels(model, [(density, "density")])
     assert sorted(sources.values()) == ["density", "model"], sources
 
     print("density detector: finds faint and solid blobs, rejects tubes, keeps flat patches")
