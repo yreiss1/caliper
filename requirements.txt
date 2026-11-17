@@ -6,3 +6,5 @@ requests
 TotalSegmentator
 rt-utils
 pillow
+pylidc
+setuptools<81
