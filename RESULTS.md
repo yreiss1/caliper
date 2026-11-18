@@ -13,7 +13,9 @@ A researcher reads each CT slice by slice, finds every tumour, outlines and meas
 
 | | Result | Data |
 |---|---|---|
-| Finds the main tumour | 8 / 8 scans | RIDER, 4 patients × test + retest |
+| Finds the main tumour | 27 / 30 scans | RIDER, all 30 test scans with an expert outline |
+| Long-axis diameter vs the expert | median error 8.0%; 16 of 27 within 10%, 20 within 20%. The expert's own two outlines differ by a median 6.7% | RIDER, 30 test scans |
+| Outline overlap with the expert (Dice) | median 0.79 | RIDER, 30 test scans |
 | Repeatability, same tumour on two same-day scans | tool moves ≤3% on 3 of 4 tumours; the expert's own re-reads move 2–12% | RIDER test/retest |
 | Matches a tumour to the earlier scan (`Match to prior`) | 4 / 4, within 0.9–9.5mm | RIDER test → retest |
 | Fills the lab's sheet | all 18 columns, their names and order; `Measured by` is left for the human | — |
@@ -21,7 +23,11 @@ A researcher reads each CT slice by slice, finds every tumour, outlines and meas
 
 ## What doesn't
 
-**Diameter reads low.** 10–21% under the expert on three of four tumours, worst on the large tumour against the chest wall, where the outline stops at the lung boundary. The dataset's own manual and semi-automatic contours of the same tumours disagree by up to 13.5%, so part of this is inside normal reader variation and part is not.
+**Large tumours the model only half-draws.** 4 of 27 read 43–51% short (Dice 0.26–0.53). The outline fix grows each outline up to 5mm into tumour-density tissue; that halved median error (15.6% to 8.0%, settings chosen on 14 patients and checked on the 13 held out: 15.7% to 7.3%), but cannot fill a tumour the model mostly missed. These need edge editing in the app.
+
+**Not found: 3 of 30.** RIDER-1286684383, -1760553574, -2541949645.
+
+**The tumour isn't always near the top of the list.** On 4 scans it ranks 14th–26th of 15–35 candidates, so the reader still goes through the whole worklist.
 
 **Faint nodules — the second pass is not replaced.** Tested on 6 LIDC-IDRI scans with 7 faint nodules marked by at least two of four radiologists:
 
