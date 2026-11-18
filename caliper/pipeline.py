@@ -339,8 +339,10 @@ def run(series_dir: Path, device: str = "cpu", faint: bool = False) -> dict:
 
     # Imported here because faint.py builds on helpers in this module.
     from caliper.faint import faint_candidates, segment_vessels, trim_vessels, widen
+    from caliper.outline import refine_all
 
-    vessels = widen(segment_vessels(nifti, work, device=device))
+    raw_vessels = segment_vessels(nifti, work, device=device)
+    vessels = widen(raw_vessels)
     dense, _ = density_candidates(ct, lungs, spacing)
     dense = trim_vessels(dense, vessels, spacing)  # both noise marks Daniel saw were bifurcations
     extras = [(dense, "density")]
@@ -351,6 +353,8 @@ def run(series_dir: Path, device: str = "cpu", faint: bool = False) -> dict:
         faint_labels, _ = faint_candidates(ct, lungs, vessels, spacing)
         extras.append((faint_labels, "faint"))
     labels, sources = merge_labels(nodules, extras)
+    # The nodule model under-draws large tumours from the inside; grow each outline a few mm.
+    labels = refine_all(labels, ct, lungs, raw_vessels, spacing)
     found, labels = candidates(labels, sources, ct, spacing, work / "lobes")
     # Keep the labelled volume so evaluation and review can recover a candidate's voxels
     # without re-running a ten-minute segmentation.
