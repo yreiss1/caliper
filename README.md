@@ -9,7 +9,7 @@ A researcher's scan takes about 40 minutes, more than half of it spent finding t
 
 ```
 CT series → lungs + lobes → trained nodule model ─┐
-          → vessel tree   → density pass, vessels ─┤→ ranked worklist → review app → lab's sheet
+          → vessel tree   → density pass, vessels ─┤→ outlines grown 5mm → ranked worklist → review app → lab's sheet
                             trimmed out            ┘
 prior scan → lung-masked registration → Match to prior
 ```
@@ -35,6 +35,18 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m caliper.pipeline data/rider/RIDER-1225316081/test
 .venv/bin/python -m caliper.pipeline data/rider/RIDER-1225316081/test --faint   # experimental ground-glass pass
 ```
+
+To run every RIDER patient that has an expert contour (about 20 minutes a scan on CPU the first time):
+
+```bash
+for p in $(.venv/bin/python -c "import json; print(' '.join(sorted({s['PatientID'] for s in json.load(open('data/rider/series_index.json')) if s.get('SeriesDescription')=='TEST'})))"); do
+  .venv/bin/python -m caliper.tcia --patient $p --out data/rider
+  .venv/bin/python -m caliper.pipeline data/rider/$p/test
+  .venv/bin/python -m caliper.truth data/rider/$p/test
+done
+```
+
+`data/rider/series_index.json` is written by the first `caliper.tcia` run in step 1.
 
 **3. Score against the expert contour, and match to the prior scan**
 
@@ -62,7 +74,7 @@ python3 -m http.server 8765 --directory review
 **Checks**
 
 ```bash
-.venv/bin/python tests/test_measure.py && .venv/bin/python tests/test_density.py && .venv/bin/python tests/test_faint.py
+.venv/bin/python tests/test_measure.py && .venv/bin/python tests/test_density.py && .venv/bin/python tests/test_faint.py && .venv/bin/python tests/test_outline.py
 ```
 
 ## Where things live
@@ -71,6 +83,7 @@ python3 -m http.server 8765 --directory review
 |---|---|
 | `caliper/measure.py` | Every number the lab publishes: long and short axis on the same slice, volume, solid component, the 18-column row |
 | `caliper/pipeline.py` | Lung and lobe segmentation, nodule model, density pass, merging and ranking |
+| `caliper/outline.py` | Grows each candidate's outline up to 5mm into tumour-density tissue; the model under-draws large tumours |
 | `caliper/faint.py` | Vessel tree, vessel trimming, experimental ground-glass pass |
 | `caliper/match.py` | `Match to prior` via lung-masked rigid registration |
 | `caliper/truth.py` | Scoring against the RIDER expert contours |
